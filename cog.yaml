@@ -1,0 +1,5 @@
+build:
+  gpu: false
+  python_version: "3.12"
+
+run: "run.py:Runner"

@@ -1,0 +1,49 @@
+# Builds the Cog image on every push to main and publishes it to GitHub
+# Container Registry as ghcr.io/<owner>/<repo>:latest (and :<commit sha>).
+# Needs no secrets: GITHUB_TOKEN can push to this repo's own packages.
+
+name: build-cog-image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+          docker-images: false
+
+      - uses: actions/checkout@v4
+
+      - name: Install Cog
+        run: |
+          sudo curl -fsSL -o /usr/local/bin/cog \
+            https://github.com/replicate/cog/releases/latest/download/cog_Linux_x86_64
+          sudo chmod +x /usr/local/bin/cog
+          cog --version
+
+      - name: Image name
+        # GHCR names must be lowercase
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: cog build -t "$IMAGE:latest"
+
+      - name: Push to GHCR
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker tag "$IMAGE:latest" "$IMAGE:$GITHUB_SHA"
+          docker push "$IMAGE:latest"
+          docker push "$IMAGE:$GITHUB_SHA"
